@@ -239,5 +239,38 @@ prompt = f"""
     Источники: документация Qdrant, LangChain, практика OpenAI.
   </p>
 </div>
+
+<!-- НАВИГАЦИЯ -->
+<div class="navigation">
+  <a href="#" class="nav-prev" id="nav-prev">← Предыдущая</a>
+  <a href="../../../contents.html" class="nav-home">📖 Содержание</a>
+  <a href="#" class="nav-next" id="nav-next">Следующая →</a>
+</div>
+<script>
+(function() {
+  var path = window.location.pathname;
+  var parts = path.split("/");
+  var current = parts.pop();
+  var chapterDir = parts.join("/");
+  var siblings = ["1_1_Определение_RAG_и_история.html", "1_2_Компоненты_RAG_системы.html", "1_3_Когда_RAG_нужен_а_когда_нет.html"];
+  var idx = siblings.indexOf(current);
+  if (idx > 0) document.getElementById("nav-prev").href = siblings[idx-1];
+  else document.getElementById("nav-prev").style.visibility = "hidden";
+  if (idx < siblings.length-1) document.getElementById("nav-next").href = siblings[idx+1];
+  else document.getElementById("nav-next").style.visibility = "hidden";
+})();
+</script>
+
+
+
+<!-- НАВИГАЦИЯ -->
+<div class="navigation">
+  <a href="#" class="nav-prev">← Предыдущая</a>
+  <a href="../../../contents.html" class="nav-home">📖 Содержание</a>
+  <a href="#" class="nav-next">Следующая →</a>
+</div>
+<script src="../../../assets/nav.js"></script>
+
+
 </body>
 </html>
