@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1.2 Компоненты RAG системы | RAG-учебник</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0c;
+    color: #f0e8d8;
+    font-family: 'Jost', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+    padding: 2rem;
+  }
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: rgba(15,15,19,0.6);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 32px;
+    padding: 2.5rem;
+  }
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 400;
+    color: #c9a96e;
+    margin-bottom: 1rem;
+  }
+  h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    margin: 1.5rem 0 0.75rem;
+    color: #d4a76a;
+  }
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin: 1.2rem 0 0.5rem;
+    color: #c8806a;
+  }
+  p {
+    margin-bottom: 1rem;
+    color: rgba(240,232,216,0.65);
+  }
+  .code-block {
+    background: #0c0c10;
+    border-left: 3px solid #c9a96e;
+    padding: 1rem 1.5rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    margin: 1.2rem 0;
+    border-radius: 16px;
+    color: #d4d4d4;
+  }
+  .card-quote {
+    background: linear-gradient(135deg, rgba(200,128,106,0.08), rgba(201,169,110,0.03));
+    border-left: 4px solid #c9a96e;
+    padding: 1.2rem 1.8rem;
+    font-style: italic;
+    margin: 1.5rem 0;
+    border-radius: 0 20px 20px 0;
+  }
+  .card-note {
+    background: rgba(201,169,110,0.08);
+    border: 1px solid rgba(201,169,110,0.2);
+    border-radius: 20px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  .pill {
+    background: rgba(201,169,110,0.15);
+    padding: 0.2rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    display: inline-block;
+    margin-right: 0.5rem;
+  }
+  img {
+    max-width: 100%;
+    border-radius: 20px;
+    margin: 1rem 0;
+    filter: saturate(0.7) sepia(0.15);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+  .component-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .component-card {
+    background: rgba(10,10,12,0.8);
+    border: 1px solid rgba(201,169,110,0.15);
+    border-radius: 20px;
+    padding: 1.2rem;
+  }
+  .component-card h4 {
+    color: #c9a96e;
+    margin-bottom: 0.5rem;
+  }
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, #c9a96e, transparent);
+    margin: 2rem 0;
+  }
+  @media (max-width: 700px) {
+    body { padding: 1rem; }
+    .container { padding: 1.5rem; }
+    h1 { font-size: 1.8rem; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="pill">Часть 1 · Глава 1</div>
+  <h1>1.2 Компоненты RAG системы</h1>
+
+  <p>Любая RAG-система состоит из трёх макрокомпонентов, которые работают в едином пайплайне. Рассмотрим каждый детально.</p>
+
+  <img src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&auto=format" alt="RAG components diagram">
+
+  <div class="component-grid">
+    <div class="component-card">
+      <h4>📥 1. Ingestion pipeline</h4>
+      <p>Подготовка данных: загрузка, очистка, chunking, генерация эмбеддингов, запись в векторную БД.</p>
+    </div>
+    <div class="component-card">
+      <h4>🔍 2. Retriever</h4>
+      <p>Поисковый модуль: принимает запрос, превращает в вектор, ищет ближайшие чанки в векторной БД.</p>
+    </div>
+    <div class="component-card">
+      <h4>🧠 3. Generator (LLM)</h4>
+      <p>Генеративная модель, которая получает контекст (найденные чанки) + запрос и формирует ответ.</p>
+    </div>
+  </div>
+
+  <h2>1. Ingestion pipeline (индексация)</h2>
+  <p>Этот компонент работает оффлайн или инкрементально. Задача — превратить сырые документы в структуру, пригодную для поиска.</p>
+  <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+    <li><strong>Загрузчик (Loader):</strong> извлекает текст из PDF, Word, HTML, базы данных, API.</li>
+    <li><strong>Парсер и очиститель:</strong> удаляет мусор, нормализует пробелы, приводит к единому регистру (опционально).</li>
+    <li><strong>Сплиттер (Chunker):</strong> разбивает длинные документы на перекрывающиеся фрагменты (чанки).</li>
+    <li><strong>Embedder:</strong> отправляет чанки в embedding-модель, получает векторы.</li>
+    <li><strong>Векторное хранилище:</strong> сохраняет пары (вектор, метаданные, оригинальный текст).</li>
+  </ul>
+
+  <div class="code-block">
+# Пример индексации с использованием Qdrant (Python)
+from qdrant_client import QdrantClient
+from sentence_transformers import SentenceTransformer
+
+client = QdrantClient(path="./qdrant_db")
+encoder = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Создаём коллекцию
+client.create_collection(
+    collection_name="my_docs",
+    vectors_config={"size": 384, "distance": "Cosine"}
+)
+
+# Индексируем чанки
+for chunk in chunks:
+    vector = encoder.encode(chunk.text).tolist()
+    client.upsert(
+        collection_name="my_docs",
+        points=[{
+            "id": chunk.id,
+            "vector": vector,
+            "payload": {"text": chunk.text, "source": chunk.source}
+        }]
+    )
+  </div>
+
+  <h2>2. Retriever (поисковик)</h2>
+  <p>Работает онлайн на каждый запрос пользователя. От качества поиска зависит >80% успеха RAG.</p>
+  <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+    <li><strong>Query encoder:</strong> превращает запрос пользователя в вектор той же размерности, что и чанки.</li>
+    <li><strong>Поисковый движок:</strong> выполняет ANN-поиск (приближённый поиск ближайших соседей) с помощью индексов HNSW, IVF или PQ.</li>
+    <li><strong>Фильтрация:</strong> отсев по метаданным (дата, автор, тип документа).</li>
+    <li><strong>Reranker (опционально):</strong> уточняет релевантность с помощью cross-encoder.</li>
+  </ul>
+
+  <div class="card-note">
+    <div style="font-size: 1.8rem;">⚡</div>
+    <div><strong>Лайфхак:</strong> не берите слишком много чанков (top_k). Для большинства задач 5–10 чанков оптимально. Больше → деградация качества из-за размывания контекста и превышения token budget.</div>
+  </div>
+
+  <h2>3. Generator (LLM)</h2>
+  <p>Генерирует ответ, используя промпт, в который вставлены извлечённые чанки и исходный запрос.</p>
+  <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+    <li><strong>Промпт-шаблон:</strong> определяет, как именно вставлять контекст и запрос.</li>
+    <li><strong>LLM:</strong> может быть API (OpenAI, Anthropic) или локальной (Llama, Mistral, Qwen).</li>
+    <li><strong>Пост-обработка:</strong> извлечение цитат, проверка галлюцинаций, форматирование.</li>
+  </ul>
+
+  <div class="code-block">
+# Типичный промпт для RAG (структурированный)
+prompt = f"""
+Ты — ассистент, который отвечает строго на основе контекста.
+
+<контекст>
+{context_chunks}
+</контекст>
+
+Вопрос пользователя: {query}
+
+Инструкции:
+1. Если ответа нет в контексте, скажи "У меня нет информации об этом".
+2. В конце ответа укажи источники в формате [1], [2].
+
+Ответ:
+"""
+  </div>
+
+  <div class="card-quote">
+    «Компоненты RAG связаны архитектурой данных. Самый слабый компонент определяет качество всей системы. Чаще всего bottleneck — это retrieval, а не генерация».
+  </div>
+
+  <h2>Дополнительные компоненты production‑системы</h2>
+  <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+    <li><strong>Кэш эмбеддингов:</strong> снижает нагрузку на embedding-модель для частых запросов.</li>
+    <li><strong>Guardrails:</strong> проверяют входящие запросы и исходящие ответы на безопасность.</li>
+    <li><strong>Мониторинг:</strong> логирует retrieval-результаты, latency, faithfulness.</li>
+    <li><strong>Очереди запросов:</strong> обеспечивают асинхронную обработку при пиковых нагрузках.</li>
+  </ul>
+
+  <div class="divider"></div>
+  <p style="font-size: 0.85rem; text-align: center; color: rgba(240,232,216,0.4);">
+    Источники: документация Qdrant, LangChain, практика OpenAI.
+  </p>
+</div>
+</body>
+</html>

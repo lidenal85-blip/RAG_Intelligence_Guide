@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1.3 Когда RAG нужен, а когда нет | RAG-учебник</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0c;
+    color: #f0e8d8;
+    font-family: 'Jost', sans-serif;
+    font-weight: 300;
+    line-height: 1.6;
+    padding: 2rem;
+  }
+  .container {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: rgba(15,15,19,0.6);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 32px;
+    padding: 2.5rem;
+  }
+  h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 2.5rem;
+    font-weight: 400;
+    color: #c9a96e;
+    margin-bottom: 1rem;
+  }
+  h2 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.8rem;
+    font-weight: 400;
+    margin: 1.5rem 0 0.75rem;
+    color: #d4a76a;
+  }
+  h3 {
+    font-size: 1.2rem;
+    font-weight: 500;
+    margin: 1.2rem 0 0.5rem;
+    color: #c8806a;
+  }
+  p {
+    margin-bottom: 1rem;
+    color: rgba(240,232,216,0.65);
+  }
+  .code-block {
+    background: #0c0c10;
+    border-left: 3px solid #c9a96e;
+    padding: 1rem 1.5rem;
+    font-family: monospace;
+    font-size: 0.85rem;
+    overflow-x: auto;
+    margin: 1.2rem 0;
+    border-radius: 16px;
+    color: #d4d4d4;
+  }
+  .card-quote {
+    background: linear-gradient(135deg, rgba(200,128,106,0.08), rgba(201,169,110,0.03));
+    border-left: 4px solid #c9a96e;
+    padding: 1.2rem 1.8rem;
+    font-style: italic;
+    margin: 1.5rem 0;
+    border-radius: 0 20px 20px 0;
+  }
+  .card-note {
+    background: rgba(201,169,110,0.08);
+    border: 1px solid rgba(201,169,110,0.2);
+    border-radius: 20px;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+  }
+  .pill {
+    background: rgba(201,169,110,0.15);
+    padding: 0.2rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    display: inline-block;
+    margin-right: 0.5rem;
+  }
+  .comparison-table {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .good-case {
+    background: rgba(60,120,80,0.1);
+    border-left: 3px solid #6a9e6a;
+    padding: 1rem;
+    border-radius: 12px;
+  }
+  .bad-case {
+    background: rgba(180,80,70,0.1);
+    border-left: 3px solid #c8806a;
+    padding: 1rem;
+    border-radius: 12px;
+  }
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, #c9a96e, transparent);
+    margin: 2rem 0;
+  }
+  @media (max-width: 700px) {
+    body { padding: 1rem; }
+    .container { padding: 1.5rem; }
+    .comparison-table { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="pill">Часть 1 · Глава 1</div>
+  <h1>1.3 Когда RAG нужен, а когда нет</h1>
+
+  <p>RAG — мощный паттерн, но не серебряная пуля. Нужно понимать границы его применимости и альтернативы.</p>
+
+  <div class="comparison-table">
+    <div class="good-case">
+      <h3 style="margin-top:0;">✅ КОГДА RAG НУЖЕН</h3>
+      <ul style="margin-left: 1rem;">
+        <li>📚 <strong>Динамические знания</strong> — документы часто обновляются (база знаний, поддержка клиентов).</li>
+        <li>🔍 <strong>Прозрачность источников</strong> — нужны ссылки на источник ответа (юристы, врачи, инженеры).</li>
+        <li>💰 <strong>Большие объёмы данных</strong> — миллионы документов; fine‑tune модели физически невозможен.</li>
+        <li>🌍 <strong>Мультипредметность</strong> — вопросы из разных областей, которые LLM не покрывает.</li>
+        <li>⚡ <strong>Быстрый старт</strong> — не нужно собирать датасет для обучения, достаточно загрузить документы.</li>
+      </ul>
+    </div>
+    <div class="bad-case">
+      <h3 style="margin-top:0;">❌ КОГДА RAG НЕ НУЖЕН</h3>
+      <ul style="margin-left: 1rem;">
+        <li>🎨 <strong>Стилизация/креатив</strong> — написание писем, поэзии, генерация идей без фактической базы.</li>
+        <li>🧮 <strong>Математика и логика</strong> — модели и так хорошо считают, retrieval не помогает.</li>
+        <li>📏 <strong>Очень короткие ответы</strong> — RAG добавляет latency, а польза нулевая.</li>
+        <li>🔁 <strong>Статичные знания</strong> — если данные не меняются, дешевле использовать fine‑tune.</li>
+        <li>⚙️ <strong>Высокоскоростные системы (&lt;100мс)</strong> — RAG добавляет поиск, что увеличивает latency.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>RAG vs fine‑tune: таблица принятия решений</h2>
+  <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+    <li><strong>Новые знания (частые обновления)</strong> → <span style="color:#c9a96e;">RAG</span></li>
+    <li><strong>Стабильный корпус документов</strong> → fine‑tune (или RAG, зависит от объёма)</li>
+    <li><strong>Нужны ссылки на источники</strong> → <span style="color:#c9a96e;">RAG</span> (обязательно)</li>
+    <li><strong>Требуется изменить стиль ответов модели</strong> → fine‑tune</li>
+    <li><strong>Глубокое понимание узкой предметной области</strong> → fine‑tune</li>
+    <li><strong>Объём знаний &gt; контекстного окна модели</strong> → <span style="color:#c9a96e;">RAG</span></li>
+  </ul>
+
+  <div class="card-quote">
+    «Правило большого пальца: если нужная информация помещается в контекстное окно модели (128K–1M токенов), можно обойтись без RAG. Если нет — RAG необходим».
+  </div>
+
+  <h2>Гибридные подходы</h2>
+  <p>Часто применяют <strong>RAG + fine‑tune</strong> одновременно:</p>
+  <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+    <li>Fine‑tune обучает модель <strong>формату ответа</strong> и <strong>стилю цитирования</strong>.</li>
+    <li>RAG предоставляет <strong>актуальные факты</strong>.</li>
+    <li>Пример: корпоративный чат‑бот — модель дообучена на тоне компании, а документы загружаются динамически.</li>
+  </ul>
+
+  <div class="code-block">
+# Когда fine‑tune не заменяет RAG: расчёт параметров
+# Допустим, у нас 1 млн документов по 1000 токенов.
+# Fine‑tune даже LoRA 7B модели на таком объёме стоит ~10k$ и требует переобучения каждую неделю.
+# RAG: индексация один раз + дешёвый поиск.
+  </div>
+
+  <div class="card-note">
+    <div style="font-size: 1.8rem;">⚠️</div>
+    <div><strong>Важно:</strong> RAG не панацея от галлюцинаций. Если retrieval вернул нерелевантные чанки, LLM может сгенерировать бред. Нужны guardrails и проверка faithfulness.</div>
+  </div>
+
+  <h2>Кейсы из практики</h2>
+  <ul style="margin-left: 1.5rem; margin-bottom: 1rem;">
+    <li><strong>Поддержка клиентов:</strong> RAG на базе статей базы знаний → уменьшение эскалаций на 40% (данные из отраслевых отчётов, точные цифры требуют проверки вендоров).</li>
+    <li><strong>Юридические консультации:</strong> RAG на законодательстве → обязательны ссылки на статьи.</li>
+    <li><strong>Медицинские Q&A:</strong> категорически нужен high‑recall retrieval, ошибки недопустимы.</li>
+  </ul>
+
+  <div class="divider"></div>
+  <p style="font-size: 0.85rem; text-align: center; color: rgba(240,232,216,0.4);">
+    Рекомендации основаны на практиках из arXiv:2312.10997, опыте Anthropic и OpenAI.
+  </p>
+</div>
+</body>
+</html>
