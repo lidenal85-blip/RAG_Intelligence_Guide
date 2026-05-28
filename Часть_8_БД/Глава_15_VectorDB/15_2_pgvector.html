@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>15.2 pgvector: PostgreSQL + векторы</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0a0c;color:#f0e8d8;font-family:'Inter',sans-serif;font-weight:300;line-height:1.6;padding:2rem;}
+  .container{max-width:1000px;margin:0 auto;background:rgba(15,15,19,0.6);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.07);border-radius:32px;padding:2.5rem;}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:400;color:#c9a96e;margin-bottom:1rem;}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:400;margin:1.5rem 0 0.75rem;color:#d4a76a;}
+  p{margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  ul,ol{margin-left:1.5rem;margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  li{margin:0.4rem 0;}
+  table{width:100%;border-collapse:collapse;margin:1.5rem 0;}
+  th{background:rgba(201,169,110,0.15);color:#c9a96e;padding:0.75rem;text-align:left;border:1px solid rgba(201,169,110,0.2);}
+  td{padding:0.6rem 0.75rem;border:1px solid rgba(255,255,255,0.07);color:rgba(240,232,216,0.65);}
+  .code-block{background:#0c0c10;border-left:3px solid #c9a96e;padding:1rem 1.5rem;font-family:monospace;font-size:0.85rem;overflow-x:auto;margin:1.2rem 0;border-radius:16px;color:#d4d4d4;white-space:pre;}
+  .card-quote{background:linear-gradient(135deg,rgba(200,128,106,0.08),rgba(201,169,110,0.03));border-left:4px solid #c9a96e;padding:1.2rem 1.8rem;font-style:italic;margin:1.5rem 0;border-radius:0 20px 20px 0;}
+  .card-note{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.2rem 1.8rem;margin:1.5rem 0;border-radius:20px;}
+  .pill{background:rgba(201,169,110,0.15);padding:0.2rem 0.8rem;border-radius:20px;font-size:0.7rem;display:inline-block;margin-bottom:1rem;}
+  .navigation{display:flex;justify-content:space-between;margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.08);}
+  .nav-prev,.nav-next,.nav-home{text-decoration:none;font-size:0.8rem;padding:0.5rem 1.2rem;border-radius:30px;background:rgba(201,169,110,0.08);border:1px solid rgba(201,169,110,0.2);color:#c9a96e;}
+  .nav-home{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:rgba(240,232,216,0.6);}
+  @media(max-width:700px){body{padding:1rem;}.container{padding:1.5rem;}h1{font-size:1.8rem;}.navigation{flex-wrap:wrap;gap:0.5rem;justify-content:center;}}</style>
+</head>
+<body>
+<div class="container">
+<div class="pill">Chapter 15.2</div>
+<h1>15.2 pgvector: PostgreSQL + векторы</h1>
+
+В эпоху информационного перегруза и растущих требований к интеллектуальному поиску, способность систем понимать и обрабатывать данные на семантическом уровне становится критически важной. Модели RAG (Retrieval Augmented Generation) лежат в основе многих современных приложений искусственного интеллекта, предоставляя генеративным моделям доступ к актуальной и релевантной информации. Ключевым компонентом RAG является эффективное хранение и поиск высокоразмерных векторов, представляющих семантическое значение текста или других данных.
+
+Традиционно для этой задачи используются специализированные векторные базы данных (Vector Databases), такие как Qdrant, Weaviate или Pinecone. Однако для многих проектов, особенно на начальных этапах или при наличии уже существующей инфраструктуры на PostgreSQL, возникает вопрос: "Можно ли обойтись без отдельной СУБД для векторов?" Ответ — да, благодаря расширению `pgvector`.
+
+<h2>Что такое pgvector и зачем он нужен?</h2>
+
+`pgvector` — это расширение для PostgreSQL, которое добавляет поддержку хранения и эффективного поиска высокоразмерных векторов. Оно позволяет превратить вашу обычную реляционную базу данных в мощный инструмент для работы с векторными эмбеддингами, не прибегая к развертыванию и управлению отдельной векторной базой данных.
+
+**Основные преимущества pgvector:**
+
+1.  **Единая точка хранения данных:** Все ваши данные — как структурированные, так и векторные эмбеддинги — находятся в одной базе данных. Это упрощает управление данными, транзакционную целостность (ACID) и резервное копирование.
+2.  **Снижение операционных издержек:** Не нужно развертывать, мониторить и поддерживать отдельный сервис. Если вы уже используете PostgreSQL, добавление `pgvector` минимально увеличивает нагрузку на инфраструктуру.
+3.  **Знакомая экосистема:** Разработчики, знакомые с PostgreSQL, могут легко интегрировать `pgvector` в свои существующие приложения, используя привычные инструменты и запросы SQL.
+4.  **Гибкость запросов:** `pgvector` позволяет комбинировать векторный поиск с традиционными SQL-запросами (фильтрация по атрибутам, объединения таблиц), что особенно полезно для гибридного поиска.
+5.  **Поддержка различных метрик расстояния:** Расширение поддерживает наиболее популярные метрики для измерения сходства векторов:
+    *   **L2 distance (Евклидово расстояние):** `vector <-> query_vector`
+    *   **Cosine distance (Косинусное расстояние):** `vector <-> query_vector` (при нормализации векторов) или `vector <=> query_vector` (специальный оператор для косинуса)
+    *   **Inner product (Скалярное произведение):** `vector <#> query_vector`
+
+`pgvector` идеально подходит для проектов, где объем векторов не исчисляется миллиардами, но требуется тесная интеграция с существующими данными, простота развертывания и высокий уровень контроля. Это отличный выбор для прототипирования, небольших и средних RAG-систем, рекомендательных движков и семантического поиска.
+
+<h2>Установка, типы данных и индексация</h2>
+
+Для использования `pgvector` его необходимо установить и включить в вашей базе данных PostgreSQL.
+
+**Установка:**
+Обычно это сводится к выполнению одной команды SQL после установки расширения на сервере (например, через пакетный менеджер вашей ОС или компиляцию из исходников):
+
+```sql
+CREATE EXTENSION vector;
+```
+
+**Тип данных `vector`:**
+`pgvector` вводит новый тип данных `vector(размерность)`, где `размерность` — это целое число, указывающее количество измерений (компонент) в вашем векторе. Например, для эмбеддингов от OpenAI `text-embedding-ada-002` размерность составляет 1536, а для `text-embedding-3-small` — 1536 или 512. Максимальная поддерживаемая размерность для `pgvector` достаточно велика, обычно до 16000, но на практике оптимальная производительность достигается при размерностях до нескольких тысяч.
+
+Пример создания таблицы с векторным столбцом:
+
+```sql
+CREATE TABLE documents (
+    id SERIAL PRIMARY KEY,
+    content TEXT,
+    embedding vector(1536)
+);
+```
+
+**Индексация для быстрого поиска:**
+Поиск ближайших соседей (Nearest Neighbor Search, NNS) в высокоразмерных пространствах является вычислительно сложной задачей. Без индекса каждый запрос требовал бы полного сканирования всех векторов, что крайне неэффективно для больших наборов данных. `pgvector` поддерживает два основных типа индексов для ускорения поиска приблизительных ближайших соседей (Approximate Nearest Neighbor, ANN):
+
+1.  **IVFFlat (Inverted File Index with Flat quantizer):** Это более старый, но все еще эффективный тип индекса. Он работает путем кластеризации векторов и поиска только в ближайших кластерах. При создании индекса вы указываете количество списков (clusters/lists) `lists`. Чем больше `lists`, тем выше точность, но медленнее построение индекса и поиск.
+    *   Пример: `CREATE INDEX ON documents USING ivfflat (embedding vector_l2_ops) WITH (lists = 100);`
+2.  **HNSW (Hierarchical Navigable Small World):** Начиная с версии `pgvector` 0.5.0, HNSW стал предпочтительным выбором для большинства сценариев. HNSW создает многослойную графовую структуру, которая позволяет очень эффективно находить ближайших соседей с отличным балансом между скоростью и точностью. Он часто превосходит IVFFlat по производительности и точности. Параметр `m` (количество соседей для построения графа) и `ef_construction` (размер списка для построения) влияют на качество индекса. `ef_search` (размер списка для поиска) влияет на точность поиска.
+    *   Пример: `CREATE INDEX ON documents USING hnsw (embedding vector_l2_ops) WITH (m = 16, ef_construction = 64);`
+
+Выбор индекса и его параметров зависит от ваших требований к точности, скорости поиска и объема данных. HNSW обычно рекомендуется для большинства новых проектов.
+
+<div class="card-quote">
+    "Использование pgvector позволяет сосредоточиться на бизнес-логике, а не на управлении инфраструктурой. Когда ваша база данных уже хранит все ваши данные, добавление векторов в ту же систему — это естественный и мощный шаг к унификации данных и упрощению архитектуры."
+</div>
+
+<h2>Использование pgvector с Python и LangChain</h2>
+
+Интеграция `pgvector` с Python-приложениями и фреймворками для работы с LLM, такими как LangChain, относительно проста.
+
+Сначала убедитесь, что у вас установлены необходимые библиотеки:
+
+```bash
+pip install psycopg2-binary pgvector "langchain>=0.1.0" "openai>=1.0.0"
+```
+
+<div class="code-block">
+<pre><code class="language-python">
+import os
+import psycopg2
+from pgvector.psycopg2 import register_vector
+from openai import OpenAI
+
+# Установите ваш ключ OpenAI из переменных окружения
+# os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY"
+
+# Инициализация клиента OpenAI
+client = OpenAI()
+
+# Параметры подключения к PostgreSQL
+DB_HOST = os.getenv("PG_HOST", "localhost")
+DB_NAME = os.getenv("PG_DB", "mydatabase")
+DB_USER = os.getenv("PG_USER", "myuser")
+DB_PASSWORD = os.getenv("PG_PASSWORD", "mypassword")
+DB_PORT = os.getenv("PG_PORT", "5432")
+
+# Размерность эмбеддингов (для text-embedding-ada-002)
+EMBEDDING_DIM = 1536
+
+# Подключение к базе данных
+conn = psycopg2.connect(
+    host=DB_HOST,
+    database=DB_NAME,
+    user=DB_USER,
+    password=DB_PASSWORD,
+    port=DB_PORT
+)
+conn.autocommit =
+<div class="navigation">
+  <a href="15_1_Qdrant.html" class="nav-prev">← Предыдущая</a>
+  <a href="../../contents.html" class="nav-home">Содержание</a>
+  <a href="15_3_Milvus.html" class="nav-next">Следующая →</a>
+</div>
+</div>
+</body>
+</html>
