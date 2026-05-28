@@ -134,7 +134,6 @@ CSS = '''*{margin:0;padding:0;box-sizing:border-box;}
 FONTS = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Inter:wght@300;400;500&display=swap'
 
 def gemini_generate(title: str, num: str, key: str) -> str:
-    """Generate HTML content via Gemini REST API."""
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={key}"
     prompt = f"""Write educational content for RAG Intelligence Guide chapter {num}: '{title}'.
 
@@ -199,23 +198,29 @@ def run():
         out_path.parent.mkdir(parents=True, exist_ok=True)
         print(f"[GEN]  {num} {title}...", end=" ", flush=True)
         
-        retries = 3
+        retries = 14  # попробуем все ключи
+        all_429 = 0
         for attempt in range(retries):
             try:
-                body = gemini_generate(title, num, key)
+                body = gemini_generate(title, num, key=get_key())
                 html = build_page(num, title, part, chapter, fname, prev, nxt, body)
                 out_path.write_text(html, encoding="utf-8")
                 size = len(html) // 1024
                 print(f"OK ({size}kb)")
                 done += 1
-                time.sleep(1.5)  # вежливый rate limit
+                all_429 = 0
+                time.sleep(2)
                 break
             except urllib.error.HTTPError as e:
                 if e.code == 429:
-                    # Ротируем ключ вместо ожидания
-                    wait = 3 if attempt < 2 else 30
-                    print(f"429 K{_KEY_IDX % len(_KEYS) if _KEYS else '?'}, новый ключ...", end=" ", flush=True)
-                    time.sleep(wait)
+                    all_429 += 1
+                    if all_429 >= 7:  # больше половины ключей — ждём
+                        print(f"\n  [все ключи 429, ждём 60s...]", end=" ", flush=True)
+                        time.sleep(60)
+                        all_429 = 0
+                    else:
+                        print(f"429>", end=" ", flush=True)
+                        time.sleep(2)
                 else:
                     print(f"HTTP {e.code}")
                     failed.append((num, title, str(e)))
@@ -223,9 +228,11 @@ def run():
             except Exception as e:
                 print(f"ERR: {e}")
                 if attempt < retries - 1:
-                    time.sleep(5)
+                    time.sleep(3)
                 else:
                     failed.append((num, title, str(e)))
+        else:
+            failed.append((num, title, "max retries"))
         
         # git commit каждые 5 глав 
         if done > 0 and done % 5 == 0:

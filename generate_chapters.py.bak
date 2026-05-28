@@ -199,32 +199,41 @@ def run():
         out_path.parent.mkdir(parents=True, exist_ok=True)
         print(f"[GEN]  {num} {title}...", end=" ", flush=True)
         
-        retries = 3
+        retries = 14  # попробуем все ключи
+        all_429 = 0
         for attempt in range(retries):
             try:
-                body = gemini_generate(title, num, key)
+                body = gemini_generate(title, num, key=get_key())
                 html = build_page(num, title, part, chapter, fname, prev, nxt, body)
                 out_path.write_text(html, encoding="utf-8")
                 size = len(html) // 1024
                 print(f"OK ({size}kb)")
                 done += 1
-                time.sleep(1.5)  # вежливый rate limit
+                all_429 = 0
+                time.sleep(2)
                 break
             except urllib.error.HTTPError as e:
                 if e.code == 429:
-                    wait = 65 * (attempt + 1)
-                    print(f"429, ждём {wait}s...", end=" ", flush=True)
-                    time.sleep(wait)
+                    all_429 += 1
+                    if all_429 >= 7:  # больше половины ключей — ждём
+                        print(f"\n  [все ключи 429, ждём 60s...]", end=" ", flush=True)
+                        time.sleep(60)
+                        all_429 = 0
+                    else:
+                        print(f"429>", end=" ", flush=True)
+                        time.sleep(2)
                 else:
-                    print(f"HTTP {e.code}: {e.reason}")
+                    print(f"HTTP {e.code}")
                     failed.append((num, title, str(e)))
                     break
             except Exception as e:
                 print(f"ERR: {e}")
                 if attempt < retries - 1:
-                    time.sleep(5)
+                    time.sleep(3)
                 else:
                     failed.append((num, title, str(e)))
+        else:
+            failed.append((num, title, "max retries"))
         
         # git commit каждые 5 глав 
         if done > 0 and done % 5 == 0:
