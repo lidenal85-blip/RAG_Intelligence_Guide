@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>10.1 BM25 и tf-idf</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0a0c;color:#f0e8d8;font-family:'Inter',sans-serif;font-weight:300;line-height:1.6;padding:2rem;}
+  .container{max-width:1000px;margin:0 auto;background:rgba(15,15,19,0.6);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.07);border-radius:32px;padding:2.5rem;}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:400;color:#c9a96e;margin-bottom:1rem;}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:400;margin:1.5rem 0 0.75rem;color:#d4a76a;}
+  p{margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  ul,ol{margin-left:1.5rem;margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  li{margin:0.4rem 0;}
+  table{width:100%;border-collapse:collapse;margin:1.5rem 0;}
+  th{background:rgba(201,169,110,0.15);color:#c9a96e;padding:0.75rem;text-align:left;border:1px solid rgba(201,169,110,0.2);}
+  td{padding:0.6rem 0.75rem;border:1px solid rgba(255,255,255,0.07);color:rgba(240,232,216,0.65);}
+  .code-block{background:#0c0c10;border-left:3px solid #c9a96e;padding:1rem 1.5rem;font-family:monospace;font-size:0.85rem;overflow-x:auto;margin:1.2rem 0;border-radius:16px;color:#d4d4d4;white-space:pre;}
+  .card-quote{background:linear-gradient(135deg,rgba(200,128,106,0.08),rgba(201,169,110,0.03));border-left:4px solid #c9a96e;padding:1.2rem 1.8rem;font-style:italic;margin:1.5rem 0;border-radius:0 20px 20px 0;}
+  .card-note{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.2rem 1.8rem;margin:1.5rem 0;border-radius:20px;}
+  .pill{background:rgba(201,169,110,0.15);padding:0.2rem 0.8rem;border-radius:20px;font-size:0.7rem;display:inline-block;margin-bottom:1rem;}
+  .navigation{display:flex;justify-content:space-between;margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.08);}
+  .nav-prev,.nav-next,.nav-home{text-decoration:none;font-size:0.8rem;padding:0.5rem 1.2rem;border-radius:30px;background:rgba(201,169,110,0.08);border:1px solid rgba(201,169,110,0.2);color:#c9a96e;}
+  .nav-home{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:rgba(240,232,216,0.6);}
+  @media(max-width:700px){body{padding:1rem;}.container{padding:1.5rem;}h1{font-size:1.8rem;}.navigation{flex-wrap:wrap;gap:0.5rem;justify-content:center;}}</style>
+</head>
+<body>
+<div class="container">
+<div class="pill">Chapter 10.1</div>
+<h1>10.1 BM25 и tf-idf</h1>
+
+<p>В мире информационного поиска и систем извлечения информации (RAG – Retrieval Augmented Generation) существует множество методов для нахождения наиболее релевантных документов по заданному запросу. Среди них особую роль играют традиционные лексические алгоритмы, такие как tf-idf и BM25. Несмотря на появление мощных векторных представлений и нейронных сетей, эти алгоритмы остаются краеугольным камнем во многих поисковых системах и зачастую являются незаменимой частью гибридных подходов, особенно когда требуется высокая точность по ключевым словам или когда семантические модели могут "галлюцинировать" или упускать редкие, но важные термины.</p>
+
+<p>Данная глава посвящена глубокому погружению в механизмы работы tf-idf и BM25, их сильным и слабым сторонам, а также их роли в современных RAG-системах.</p>
+
+<h2>tf-idf: Основы и Применение</h2>
+
+<p><b>tf-idf</b> (term frequency-inverse document frequency) — это статистическая мера, используемая для оценки важности слова в документе в коллекции или корпусе. Она основана на двух ключевых компонентах:</p>
+
+<ol>
+    <li><b>Частота термина (Term Frequency, TF)</b>: Отражает, как часто термин встречается в данном документе. Чем чаще слово появляется в документе, тем выше его важность для этого документа. Существуют различные способы вычисления TF, например:
+        <ul>
+            <li>Сырая частота: $TF(t, d) = \text{количество вхождений } t \text{ в } d$</li>
+            <li>Логарифмическая нормализация: $TF(t, d) = 1 + \log(\text{количество вхождений } t \text{ в } d)$</li>
+            <li>Нормализация по максимальной частоте: $TF(t, d) = \frac{\text{количество вхождений } t \text{ в } d}{\text{максимальное количество вхождений любого термина в } d}$</li>
+        </ul>
+        Цель нормализации — предотвратить доминирование длинных документов и уменьшить влияние очень частых слов.</li>
+    <li><b>Обратная частота документа (Inverse Document Frequency, IDF)</b>: Отражает редкость термина во всей коллекции документов. Чем реже слово встречается в коллекции, тем более уникальным и информативным оно считается. IDF вычисляется по формуле:
+        $$IDF(t, D) = \log\left(\frac{N}{|\{d \in D : t \in d\}|}\right)$$
+        где $N$ — общее количество документов в коллекции $D$, а $|\{d \in D : t \in d\}|$ — количество документов, содержащих термин $t$. Добавление +1 к знаменателю (например, $1 + |\{d \in D : t \in d\}|$) часто используется для предотвращения деления на ноль, если термин не встречается ни в одном документе.</li>
+</ol>
+
+<p>Окончательный вес tf-idf для термина $t$ в документе $d$ рассчитывается как произведение TF и IDF:</p>
+$$tf-idf(t, d, D) = TF(t, d) \times IDF(t, D)$$
+
+<p>Для запроса $q$, состоящего из нескольких терминов, общий балл документа $d$ по отношению к $q$ обычно вычисляется как сумма tf-idf весов всех терминов запроса, присутствующих в документе:</p>
+$$Score(q, d) = \sum_{t \in q \cap d} tf-idf(t, d, D)$$
+
+<p><b>Преимущества tf-idf:</b>
+<ul>
+    <li>Простота и интуитивность.</li>
+    <li>Хорошая базовая производительность для задач поиска и классификации.</li>
+    <li>Относительно низкие вычислительные затраты.</li>
+</ul></p>
+
+<p><b>Недостатки tf-idf:</b>
+<ul>
+    <li>Не учитывает семантическую близость слов (например, "автомобиль" и "машина" рассматриваются как разные слова).</li>
+    <li>Не учитывает порядок слов в документе или запросе (модель "мешка слов").</li>
+    <li>Проблемы с насыщением TF: после определенного порога увеличение частоты слова в документе не обязательно означает пропорциональное увеличение его важности.</li>
+    <li>Не всегда эффективно нормализует по длине документа, что может приводить к предпочтению более длинных документов.</li>
+</ul></p>
+
+<h2>BM25: Эволюция и Преимущества</h2>
+
+<p><b>BM25</b> (Okapi BM25) — это функция ранжирования, разработанная в 1990-х годах и ставшая стандартом де-факто для лексического поиска во многих современных поисковых системах, таких как Elasticsearch, Apache Solr и Lucene. Она представляет собой значительное улучшение по сравнению с tf-idf, особенно в плане обработки частоты терминов и нормализации по длине документа.</p>
+
+<p>Функция BM25 оценивает релевантность документа $d$ для запроса $Q$, состоящего из терминов $q_1, \dots, q_n$. Общая формула для BM25 выглядит следующим образом:</p>
+$$Score(D, Q) = \sum_{i=1}^n IDF(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{avgdl}\right)}$$
+
+<p>Где:</p>
+<ul>
+    <li>$IDF(q_i)$ — обратная частота документа для термина запроса $q_i$. В BM25 используется немного другая формула IDF, чем в классическом tf-idf, часто включающая сглаживание:
+        $$IDF(q_i) = \log\left(\frac{N - n(q_i) + 0.5}{n(q_i) + 0.5} + 1\right)$$
+        где $N$ — общее количество документов в коллекции, $n(q_i)$ — количество документов, содержащих термин $q_i$.</li>
+    <li>$f(q_i, D)$ — частота термина $q_i$ в документе $D$.</li>
+    <li>$|D|$ — длина документа $D$ (количество слов).</li>
+    <li>$avgdl$ — средняя длина документа в коллекции.</li>
+    <li>$k_1$ — параметр насыщения частоты термина (обычно от 1.2 до 2.0). Он контролирует, насколько сильно TF влияет на общий балл. Малые значения $k_1$ приводят к более быстрому насыщению.</li>
+    <li>$b$ — параметр нормализации по длине документа (обычно от 0.0 до 1.0). Он контролирует степень влияния длины документа на его балл. При $b=0$ нормализация по длине отсутствует, при $b=1$ нормализация полная.</li>
+</ul>
+
+<p><b>Ключевые улучшения BM25 по сравнению с tf-idf:</b></p>
+<ol>
+    <li><b>Насыщение TF:</b> В отличие от линейного или логарифмического роста TF в tf-idf, BM25 использует функцию, которая быстро растет, а затем асимптотически приближается к максимуму. Это предотвращает чрезмерное влияние очень частых терминов в одном документе. Параметр $k_1$ управляет скоростью этого насыщения.</li>
+    <li><b>Нормализация по длине документа:</b> BM2
+<div class="navigation">
+  <a href="../Глава_9_Vector/9_3_Фильтрация.html" class="nav-prev">← Предыдущая</a>
+  <a href="../../contents.html" class="nav-home">Содержание</a>
+  <a href="10_2_Hybrid.html" class="nav-next">Следующая →</a>
+</div>
+</div>
+</body>
+</html>
