@@ -1,0 +1,227 @@
+#!/usr/bin/env python3
+"""
+generate_chapters.py
+Генератор глав учебника RAG Intelligence Guide.
+Запуск: python3 /tmp/RAG_book/generate_chapters.py
+"""
+import os, sys, time, re
+import urllib.request, urllib.error, json
+from pathlib import Path
+
+BASE = Path("/tmp/RAG_book")
+GEMINI_MODEL = "gemini-2.5-flash"
+
+# Читаем ключ из .env
+def get_key():
+    env = Path("/opt/leviathan_engine/agent_service/.env").read_text()
+    for line in env.splitlines():
+        if line.startswith("GEMINI_K1="):
+            return line.split("=", 1)[1].strip()
+    raise RuntimeError("GEMINI_K1 не найден")
+
+# Структура: (номер, заголовок, часть_папка, глава_папка, файл, пред, след)
+CHAPTERS = [
+    # Часть 1 — Глава 2
+    ("2.1","Отличия RAG от fine-tuning и выбор подхода","Часть_1_Основы_RAG","Глава_2_RAG_vs_fine_tuning","2_1_Отличия_и_выбор_подхода","../1_3_Когда_RAG_нужен_а_когда_нет.html","2_2_Ограничения_LLM.html"),
+    ("2.2","Ограничения LLM, которые решает RAG","Часть_1_Основы_RAG","Глава_2_RAG_vs_fine_tuning","2_2_Ограничения_LLM","2_1_Отличия_и_выбор_подхода.html","2_3_Кейсы.html"),
+    ("2.3","Кейсы применения RAG","Часть_1_Основы_RAG","Глава_2_RAG_vs_fine_tuning","2_3_Кейсы","2_2_Ограничения_LLM.html","../../Часть_2_Архитектура/Глава_3_Pipeline/3_1_Data_flow.html"),
+    # Часть 2 — Глава 3
+    ("3.1","Data flow от запроса до ответа","Часть_2_Архитектура","Глава_3_Pipeline","3_1_Data_flow","../../Часть_1_Основы_RAG/Глава_2_RAG_vs_fine_tuning/2_3_Кейсы.html","3_2_Компоненты.html"),
+    ("3.2","Компоненты системы и их связи","Часть_2_Архитектура","Глава_3_Pipeline","3_2_Компоненты","3_1_Data_flow.html","3_3_Latency.html"),
+    ("3.3","Latency и bottlenecks","Часть_2_Архитектура","Глава_3_Pipeline","3_3_Latency","3_2_Компоненты.html","../Глава_4_Данные/4_1_Источники.html"),
+    # Глава 4
+    ("4.1","Источники данных и парсинг","Часть_2_Архитектура","Глава_4_Данные","4_1_Источники","../Глава_3_Pipeline/3_3_Latency.html","4_2_Очистка.html"),
+    ("4.2","Очистка и нормализация данных","Часть_2_Архитектура","Глава_4_Данные","4_2_Очистка","4_1_Источники.html","4_3_Метаданные.html"),
+    ("4.3","Извлечение метаданных","Часть_2_Архитектура","Глава_4_Данные","4_3_Метаданные","4_2_Очистка.html","../../Часть_3_Чанки/Глава_5_Chunking/5_1_Размер.html"),
+    # Глава 5
+    ("5.1","Размер чанка и перекрытие","Часть_3_Чанки","Глава_5_Chunking","5_1_Размер","../../Часть_2_Архитектура/Глава_4_Данные/4_3_Метаданные.html","5_2_Семантика.html"),
+    ("5.2","Семантический chunking","Часть_3_Чанки","Глава_5_Chunking","5_2_Семантика","5_1_Размер.html","5_3_Рекурсивный.html"),
+    ("5.3","Рекурсивный и структурный chunking","Часть_3_Чанки","Глава_5_Chunking","5_3_Рекурсивный","5_2_Семантика.html","../Глава_6_Versioning/6_1_Incremental.html"),
+    # Глава 6
+    ("6.1","Incremental indexing","Часть_3_Чанки","Глава_6_Versioning","6_1_Incremental","../Глава_5_Chunking/5_3_Рекурсивный.html","6_2_Versioning.html"),
+    ("6.2","Versioning документов","Часть_3_Чанки","Глава_6_Versioning","6_2_Versioning","6_1_Incremental.html","6_3_Устаревшие.html"),
+    ("6.3","Управление устаревшими данными","Часть_3_Чанки","Глава_6_Versioning","6_3_Устаревшие","6_2_Versioning.html","../../Часть_4_Embeddings/Глава_7_Как_работают/7_1_Векторы.html"),
+    # Главы 7-8
+    ("7.1","Векторные представления текста","Часть_4_Embeddings","Глава_7_Как_работают","7_1_Векторы","../../Часть_3_Чанки/Глава_6_Versioning/6_3_Устаревшие.html","7_2_Косинус.html"),
+    ("7.2","Косинусное расстояние","Часть_4_Embeddings","Глава_7_Как_работают","7_2_Косинус","7_1_Векторы.html","7_3_Размерность.html"),
+    ("7.3","Размерность и trade-offs","Часть_4_Embeddings","Глава_7_Как_работают","7_3_Размерность","7_2_Косинус.html","../Глава_8_Модели/8_1_OpenAI.html"),
+    ("8.1","OpenAI embeddings","Часть_4_Embeddings","Глава_8_Модели","8_1_OpenAI","../Глава_7_Как_работают/7_3_Размерность.html","8_2_Multilingual.html"),
+    ("8.2","Multilingual embeddings","Часть_4_Embeddings","Глава_8_Модели","8_2_Multilingual","8_1_OpenAI.html","8_3_Open_source.html"),
+    ("8.3","Open-source модели embeddings","Часть_4_Embeddings","Глава_8_Модели","8_3_Open_source","8_2_Multilingual.html","8_4_Оптимизация.html"),
+    ("8.4","Оптимизация скорости embeddings","Часть_4_Embeddings","Глава_8_Модели","8_4_Оптимизация","8_3_Open_source.html","../../Часть_5_Поиск/Глава_9_Vector/9_1_Search.html"),
+    # Главы 9-11
+    ("9.1","Vector search основы","Часть_5_Поиск","Глава_9_Vector","9_1_Search","../../Часть_4_Embeddings/Глава_8_Модели/8_4_Оптимизация.html","9_2_Индексы.html"),
+    ("9.2","Индексы HNSW, IVF, PQ","Часть_5_Поиск","Глава_9_Vector","9_2_Индексы","9_1_Search.html","9_3_Фильтрация.html"),
+    ("9.3","Фильтрация по метаданным","Часть_5_Поиск","Глава_9_Vector","9_3_Фильтрация","9_2_Индексы.html","../Глава_10_Hybrid/10_1_BM25.html"),
+    ("10.1","BM25 и tf-idf","Часть_5_Поиск","Глава_10_Hybrid","10_1_BM25","../Глава_9_Vector/9_3_Фильтрация.html","10_2_Hybrid.html"),
+    ("10.2","Hybrid search стратегии","Часть_5_Поиск","Глава_10_Hybrid","10_2_Hybrid","10_1_BM25.html","10_3_Веса.html"),
+    ("10.3","Настройка весов поиска","Часть_5_Поиск","Глава_10_Hybrid","10_3_Веса","10_2_Hybrid.html","../Глава_11_Оптимизация/11_1_Rewriting.html"),
+    ("11.1","Query rewriting","Часть_5_Поиск","Глава_11_Оптимизация","11_1_Rewriting","../Глава_10_Hybrid/10_3_Веса.html","11_2_Expansion.html"),
+    ("11.2","Query expansion","Часть_5_Поиск","Глава_11_Оптимизация","11_2_Expansion","11_1_Rewriting.html","11_3_Multi_query.html"),
+    ("11.3","Multi-query retrieval","Часть_5_Поиск","Глава_11_Оптимизация","11_3_Multi_query","11_2_Expansion.html","11_4_Decomposition.html"),
+    ("11.4","Query decomposition","Часть_5_Поиск","Глава_11_Оптимизация","11_4_Decomposition","11_3_Multi_query.html","../../Часть_6_Reranking/Глава_12_Reranking/12_1_Принципы.html"),
+    # Главы 12-14
+    ("12.1","Принципы reranking","Часть_6_Reranking","Глава_12_Reranking","12_1_Принципы","../../Часть_5_Поиск/Глава_11_Оптимизация/11_4_Decomposition.html","12_2_Lightweight.html"),
+    ("12.2","Lightweight rerankers","Часть_6_Reranking","Глава_12_Reranking","12_2_Lightweight","12_1_Принципы.html","12_3_Когда.html"),
+    ("12.3","Когда нужен reranking","Часть_6_Reranking","Глава_12_Reranking","12_3_Когда","12_2_Lightweight.html","../../Часть_7_Контекст/Глава_13_Контекст/13_1_Token.html"),
+    ("13.1","Token budget и контекстное окно","Часть_7_Контекст","Глава_13_Контекст","13_1_Token","../../Часть_6_Reranking/Глава_12_Reranking/12_3_Когда.html","13_2_Compression.html"),
+    ("13.2","Context compression","Часть_7_Контекст","Глава_13_Контекст","13_2_Compression","13_1_Token.html","13_3_Dedup.html"),
+    ("13.3","Deduplication чанков","Часть_7_Контекст","Глава_13_Контекст","13_3_Dedup","13_2_Compression.html","13_4_Sliding.html"),
+    ("13.4","Sliding window context","Часть_7_Контекст","Глава_13_Контекст","13_4_Sliding","13_3_Dedup.html","../Глава_14_Промпты/14_1_Вставка.html"),
+    ("14.1","Вставка контекста в промпт","Часть_7_Контекст","Глава_14_Промпты","14_1_Вставка","../Глава_13_Контекст/13_4_Sliding.html","14_2_Structured.html"),
+    ("14.2","Structured prompts для RAG","Часть_7_Контекст","Глава_14_Промпты","14_2_Structured","14_1_Вставка.html","14_3_Citation.html"),
+    ("14.3","Citation forcing","Часть_7_Контекст","Глава_14_Промпты","14_3_Citation","14_2_Structured.html","14_4_Anti_hallucination.html"),
+    ("14.4","Anti-hallucination подходы","Часть_7_Контекст","Глава_14_Промпты","14_4_Anti_hallucination","14_3_Citation.html","../../Часть_8_БД/Глава_15_VectorDB/15_1_Qdrant.html"),
+    # Главы 15-16
+    ("15.1","Qdrant: архитектура и практика","Часть_8_БД","Глава_15_VectorDB","15_1_Qdrant","../../Часть_7_Контекст/Глава_14_Промпты/14_4_Anti_hallucination.html","15_2_pgvector.html"),
+    ("15.2","pgvector: PostgreSQL + векторы","Часть_8_БД","Глава_15_VectorDB","15_2_pgvector","15_1_Qdrant.html","15_3_Milvus.html"),
+    ("15.3","Milvus и LanceDB","Часть_8_БД","Глава_15_VectorDB","15_3_Milvus","15_2_pgvector.html","15_4_Выбор.html"),
+    ("15.4","Выбор векторной БД","Часть_8_БД","Глава_15_VectorDB","15_4_Выбор","15_3_Milvus.html","../Глава_16_S3/16_1_S3.html"),
+    ("16.1","S3 и совместимые решения","Часть_8_БД","Глава_16_S3","16_1_S3","../Глава_15_VectorDB/15_4_Выбор.html","16_2_CDN.html"),
+    ("16.2","Архитектура с CDN","Часть_8_БД","Глава_16_S3","16_2_CDN","16_1_S3.html","16_3_Cache.html"),
+    ("16.3","S3 + кэш: лайфхак","Часть_8_БД","Глава_16_S3","16_3_Cache","16_2_CDN.html","../../Часть_9_Cloud/Глава_17_Cloud/17_1_Cloud.html"),
+    # Главы 17-18
+    ("17.1","Pinecone, Qdrant Cloud","Часть_9_Cloud","Глава_17_Cloud","17_1_Cloud","../../Часть_8_БД/Глава_16_S3/16_3_Cache.html","17_2_Serverless.html"),
+    ("17.2","Serverless vector stores","Часть_9_Cloud","Глава_17_Cloud","17_2_Serverless","17_1_Cloud.html","17_3_Цены.html"),
+    ("17.3","Цены и лимиты облака","Часть_9_Cloud","Глава_17_Cloud","17_3_Цены","17_2_Serverless.html","../Глава_18_OnPrem/18_1_Хостинг.html"),
+    ("18.1","Самостоятельный хостинг","Часть_9_Cloud","Глава_18_OnPrem","18_1_Хостинг","../Глава_17_Cloud/17_3_Цены.html","18_2_Локально.html"),
+    ("18.2","Когда локальное дешевле","Часть_9_Cloud","Глава_18_OnPrem","18_2_Локально","18_1_Хостинг.html","18_3_Гибрид.html"),
+    ("18.3","Гибридные схемы","Часть_9_Cloud","Глава_18_OnPrem","18_3_Гибрид","18_2_Локально.html","../../Часть_10_Право/Глава_19_GDPR/19_1_GDPR.html"),
+    # Глава 19
+    ("19.1","GDPR и ФЗ-152","Часть_10_Право","Глава_19_GDPR","19_1_GDPR","../../Часть_9_Cloud/Глава_18_OnPrem/18_3_Гибрид.html","19_2_HIPAA.html"),
+    ("19.2","HIPAA и медицина","Часть_10_Право","Глава_19_GDPR","19_2_HIPAA","19_1_GDPR.html","19_3_Нельзя.html"),
+    ("19.3","Категорически нельзя в облаке","Часть_10_Право","Глава_19_GDPR","19_3_Нельзя","19_2_HIPAA.html","../../содержание.html"),
+]
+
+CSS = '''*{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0a0c;color:#f0e8d8;font-family:'Inter',sans-serif;font-weight:300;line-height:1.6;padding:2rem;}
+  .container{max-width:1000px;margin:0 auto;background:rgba(15,15,19,0.6);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.07);border-radius:32px;padding:2.5rem;}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:400;color:#c9a96e;margin-bottom:1rem;}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:400;margin:1.5rem 0 0.75rem;color:#d4a76a;}
+  p{margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  ul,ol{margin-left:1.5rem;margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  li{margin:0.4rem 0;}
+  table{width:100%;border-collapse:collapse;margin:1.5rem 0;}
+  th{background:rgba(201,169,110,0.15);color:#c9a96e;padding:0.75rem;text-align:left;border:1px solid rgba(201,169,110,0.2);}
+  td{padding:0.6rem 0.75rem;border:1px solid rgba(255,255,255,0.07);color:rgba(240,232,216,0.65);}
+  .code-block{background:#0c0c10;border-left:3px solid #c9a96e;padding:1rem 1.5rem;font-family:monospace;font-size:0.85rem;overflow-x:auto;margin:1.2rem 0;border-radius:16px;color:#d4d4d4;white-space:pre;}
+  .card-quote{background:linear-gradient(135deg,rgba(200,128,106,0.08),rgba(201,169,110,0.03));border-left:4px solid #c9a96e;padding:1.2rem 1.8rem;font-style:italic;margin:1.5rem 0;border-radius:0 20px 20px 0;}
+  .card-note{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.2rem 1.8rem;margin:1.5rem 0;border-radius:20px;}
+  .pill{background:rgba(201,169,110,0.15);padding:0.2rem 0.8rem;border-radius:20px;font-size:0.7rem;display:inline-block;margin-bottom:1rem;}
+  .navigation{display:flex;justify-content:space-between;margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.08);}
+  .nav-prev,.nav-next,.nav-home{text-decoration:none;font-size:0.8rem;padding:0.5rem 1.2rem;border-radius:30px;background:rgba(201,169,110,0.08);border:1px solid rgba(201,169,110,0.2);color:#c9a96e;}
+  .nav-home{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:rgba(240,232,216,0.6);}
+  @media(max-width:700px){body{padding:1rem;}.container{padding:1.5rem;}h1{font-size:1.8rem;}.navigation{flex-wrap:wrap;gap:0.5rem;justify-content:center;}}'''
+
+FONTS = 'https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Inter:wght@300;400;500&display=swap'
+
+def gemini_generate(title: str, num: str, key: str) -> str:
+    """Generate HTML content via Gemini REST API."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={key}"
+    prompt = f"""Write educational content for RAG Intelligence Guide chapter {num}: '{title}'.
+
+Output only the HTML body content (NO doctype/html/head/body tags), in Russian.
+Requirements:
+- At least 600 words of useful technical information
+- 2-3 <h2> sections  
+- One <div class=\"code-block\"> with real Python code example
+- One <div class=\"card-quote\"> with a practical insight
+- One <div class=\"card-note\"> with a pro-tip
+- If relevant: an HTML <table> comparing options
+- Specific technical details, numbers, real tool names (Qdrant, LangChain, etc.)
+- NO placeholder text, NO lorem ipsum
+
+Start with: <div class=\"pill\">Chapter {num}</div>\n<h1>{num} {title}</h1>"""
+    
+    payload = json.dumps({"contents": [{"parts": [{"text": prompt}]}],
+                          "generationConfig": {"maxOutputTokens": 3000, "temperature": 0.7}})
+    req = urllib.request.Request(url, data=payload.encode(), 
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read())
+    return data["candidates"][0]["content"]["parts"][0]["text"]
+
+
+def build_page(num: str, title: str, part: str, chapter: str, 
+               fname: str, prev: str, nxt: str, body: str) -> str:
+    depth = "../" * (fname.count("_") // 2 + 2)  # глубина релативных путей
+    return f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>{num} {title}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="{FONTS}" rel="stylesheet">
+<style>{CSS}</style>
+</head>
+<body>
+<div class="container">
+{body}
+<div class="navigation">
+  <a href="{prev}" class="nav-prev">← Предыдущая</a>
+  <a href="../../contents.html" class="nav-home">Содержание</a>
+  <a href="{nxt}" class="nav-next">Следующая →</a>
+</div>
+</div>
+</body>
+</html>"""
+
+
+def run():
+    key = get_key()
+    done, failed = 0, []
+    
+    for num, title, part, chapter, fname, prev, nxt in CHAPTERS:
+        out_path = BASE / part / chapter / f"{fname}.html"
+        
+        if out_path.exists():
+            print(f"[SKIP] {num} {title}")
+            continue
+        
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"[GEN]  {num} {title}...", end=" ", flush=True)
+        
+        retries = 3
+        for attempt in range(retries):
+            try:
+                body = gemini_generate(title, num, key)
+                html = build_page(num, title, part, chapter, fname, prev, nxt, body)
+                out_path.write_text(html, encoding="utf-8")
+                size = len(html) // 1024
+                print(f"OK ({size}kb)")
+                done += 1
+                time.sleep(1.5)  # вежливый rate limit
+                break
+            except urllib.error.HTTPError as e:
+                if e.code == 429:
+                    wait = 65 * (attempt + 1)
+                    print(f"429, ждём {wait}s...", end=" ", flush=True)
+                    time.sleep(wait)
+                else:
+                    print(f"HTTP {e.code}: {e.reason}")
+                    failed.append((num, title, str(e)))
+                    break
+            except Exception as e:
+                print(f"ERR: {e}")
+                if attempt < retries - 1:
+                    time.sleep(5)
+                else:
+                    failed.append((num, title, str(e)))
+        
+        # git commit каждые 5 глав 
+        if done > 0 and done % 5 == 0:
+            os.system(f"cd {BASE} && git add -A && git commit -m 'Главы {done - 4}-{done}: автогенерация'")
+            print(f"[GIT] коммит {done - 4}-{done}")
+    
+    # Финальный push
+    print(f"\nГенерация завершена: {done} глав")
+    if failed:
+        print("Не удалось:", [f"{n} {t}" for n, t, _ in failed])
+    os.system(f"cd {BASE} && git add -A && git commit -m 'RAG Guide: всего {done} глав' && git push")
+    print("Пуш завершён")
+    return done, failed
+
+
+if __name__ == "__main__":
+    done, failed = run()
+    sys.exit(0 if not failed else 1)

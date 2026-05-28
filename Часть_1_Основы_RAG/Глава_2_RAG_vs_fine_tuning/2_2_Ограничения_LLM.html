@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>2.2 Ограничения LLM, которые решает RAG</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0a0c;color:#f0e8d8;font-family:'Inter',sans-serif;font-weight:300;line-height:1.6;padding:2rem;}
+  .container{max-width:1000px;margin:0 auto;background:rgba(15,15,19,0.6);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.07);border-radius:32px;padding:2.5rem;}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:400;color:#c9a96e;margin-bottom:1rem;}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:400;margin:1.5rem 0 0.75rem;color:#d4a76a;}
+  p{margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  ul,ol{margin-left:1.5rem;margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  li{margin:0.4rem 0;}
+  table{width:100%;border-collapse:collapse;margin:1.5rem 0;}
+  th{background:rgba(201,169,110,0.15);color:#c9a96e;padding:0.75rem;text-align:left;border:1px solid rgba(201,169,110,0.2);}
+  td{padding:0.6rem 0.75rem;border:1px solid rgba(255,255,255,0.07);color:rgba(240,232,216,0.65);}
+  .code-block{background:#0c0c10;border-left:3px solid #c9a96e;padding:1rem 1.5rem;font-family:monospace;font-size:0.85rem;overflow-x:auto;margin:1.2rem 0;border-radius:16px;color:#d4d4d4;white-space:pre;}
+  .card-quote{background:linear-gradient(135deg,rgba(200,128,106,0.08),rgba(201,169,110,0.03));border-left:4px solid #c9a96e;padding:1.2rem 1.8rem;font-style:italic;margin:1.5rem 0;border-radius:0 20px 20px 0;}
+  .card-note{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.2rem 1.8rem;margin:1.5rem 0;border-radius:20px;}
+  .pill{background:rgba(201,169,110,0.15);padding:0.2rem 0.8rem;border-radius:20px;font-size:0.7rem;display:inline-block;margin-bottom:1rem;}
+  .navigation{display:flex;justify-content:space-between;margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.08);}
+  .nav-prev,.nav-next,.nav-home{text-decoration:none;font-size:0.8rem;padding:0.5rem 1.2rem;border-radius:30px;background:rgba(201,169,110,0.08);border:1px solid rgba(201,169,110,0.2);color:#c9a96e;}
+  .nav-home{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:rgba(240,232,216,0.6);}
+  @media(max-width:700px){body{padding:1rem;}.container{padding:1.5rem;}h1{font-size:1.8rem;}.navigation{flex-wrap:wrap;gap:0.5rem;justify-content:center;}}</style>
+</head>
+<body>
+<div class="container">
+<div class="pill">Chapter 2.2</div>
+<h1>2.2 Ограничения LLM, которые решает RAG</h1>
+
+Большие языковые модели (LLM), такие как GPT-4, Claude 3 или Llama 3, представляют собой революционный прорыв в области искусственного интеллекта. Они способны генерировать связный текст, отвечать на вопросы, переводить языки и даже писать код, основываясь на огромных объемах данных, на которых они были обучены. Однако, несмотря на их впечатляющие возможности, LLM не лишены фундаментальных ограничений, которые могут препятствовать их эффективному и надежному применению в критически важных сценариях. Именно здесь на сцену выходит RAG (Retrieval-Augmented Generation – генерация, дополненная поиском), предлагая элегантное решение многих из этих проблем.
+
+<h2>Галлюцинации и фактологическая неточность</h2>
+Одной из наиболее серьезных проблем LLM являются так называемые "галлюцинации" – явление, при котором модель генерирует информацию, которая выглядит правдоподобно, но является фактически неверной, вымышленной или не соответствующей действительности. Это происходит по нескольким причинам:
+
+1.  **Статистическая природа:** LLM – это статистические модели, которые предсказывают следующее слово на основе вероятностей, а не на основе реального понимания мира или фактов. Если в обучающих данных были противоречия или неточности, или если модель сталкивается с редким запросом, она может "додумать" ответ.
+2.  **Обобщение данных:** Модели обучаются на миллиардах токенов, но не запоминают каждую отдельную единицу информации. Они создают обобщенные представления, которые могут быть неточными при запросе конкретных деталей. Например, LLM может уверенно назвать неверную дату исторического события или приписать цитату не тому автору.
+3.  **Отсутствие обратной связи с реальностью:** LLM не имеют механизма для проверки своих ответов на соответствие внешнему миру или актуальным источникам информации. Они оперируют только своими внутренними представлениями, сформированными в процессе обучения.
+
+Галлюцинации делают LLM ненадежными для приложений, требующих высокой точности, таких как юридические консультации, медицинская диагностика, финансовый анализ или научные исследования. RAG кардинально меняет эту ситуацию. Вместо того чтобы полагаться исключительно на свои внутренние знания, RAG сначала выполняет поиск (retrieval) в заранее определенных и, как правило, проверенных внешних источниках данных (например, базах знаний, документах компании, статьях). Затем извлеченные релевантные фрагменты информации передаются LLM в качестве дополнительного контекста для генерации ответа. Таким образом, LLM "заземляется" на фактах, снижая вероятность галлюцинаций и значительно повышая фактическую точность.
+
+<div class="card-quote">
+    "В мире RAG LLM перестает быть всезнающим оракулом и становится скорее умным адвокатом, который аргументирует свою позицию, опираясь на предоставленные ему доказательства. Это фундаментальный сдвиг в сторону надежности и доверия."
+</div>
+
+<h2>Ограниченность контекстного окна и устаревшие данные</h2>
+Каждая LLM имеет ограничение на размер "контекстного окна" – максимальное количество токенов (слов или их частей), которое она может одновременно обработать и учесть при генерации ответа. Это ограничение может варьироваться от нескольких тысяч токенов (например, 4K для ранних GPT-3.5) до сотен тысяч (например, 1M для Claude 3 Opus). Однако даже самые большие контекстные окна не могут вместить всю необходимую информацию для сложных корпоративных знаний, полной документации по продукту или всей истории взаимодействия с клиентом.
+
+Кроме того, LLM обучаются на данных, собранных до определенного момента времени (так называемый "knowledge cut-off"). Это означает, что они не имеют доступа к самой свежей информации, последним новостям, изменениям в законодательстве, новым продуктам компании или данным, собранным после даты их обучения. Попытка запросить у такой модели актуальные данные приведет к неверным или устаревшим ответам.
+
+RAG эффективно решает обе эти проблемы:
+
+1.  **Преодоление ограничения контекстного окна:** Вместо того чтобы пытаться загрузить всю базу знаний в контекст LLM, RAG интеллектуально извлекает только *наиболее релевантные* фрагменты данных, которые имеют непосредственное отношение к текущему запросу пользователя. Эти небольшие, но высокорелевантные фрагменты затем помещаются в контекстное окно LLM, позволяя ей генерировать точные ответы, опираясь на информацию, которая иначе была бы недоступна. Для эффективного поиска используются векторные базы данных (Vector Databases), такие как Qdrant, Pinecone, Weaviate или Chroma, которые позволяют хранить и быстро находить семантически похожие текстовые фрагменты.
+2.  **Актуализация данных:** RAG позволяет LLM получать доступ к постоянно обновляемым внешним источникам данных. Это может быть база данных компании, свежие статьи из интернета, текущие отчеты или любая другая динамическая информация. Таким образом, LLM может отвечать на вопросы, используя самую актуальную информацию, что критически важно для многих бизнес-приложений.
+
+Вот упрощенный пример кода, демонстрирующий концепцию RAG с использованием библиотеки LangChain, где LLM получает доступ к внешним "документам":
+
+<div class="code-block">
+<pre><code class="language-python">
+from langchain_community.llms import OpenAI
+from langchain.chains import RetrievalQA
+from langchain_community.vectorstores import Chroma
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_community.document_loaders import TextLoader
+from langchain.text_splitter import CharacterTextSplitter
+import os
+
+# Устанавливаем ключ API (в реальном приложении лучше использовать переменные окружения)
+# os.environ["OPENAI_API_KEY"] = "YOUR_OPENAI_API_KEY"
+
+# 1. Загрузка и разделение документов (пример с локальным файлом)
+# Создадим фиктивный файл базы знаний
+with open("knowledge_base.txt", "w", encoding="utf-8") as f:
+    f.write("История компании ExampleCorp началась в 2005 году с выпуска инновационного продукта X.\n")
+    f.write("В 2010 году ExampleCorp представила продукт Y, который стал бестселлером.\n")
+    f.write("Текущий CEO компании ExampleCorp - Джейн Доу, назначенная в 2022 году.\n")
+    f.write("Последний финансовый отчет ExampleCorp показал рост прибыли на 15% в Q1 2024.\n")
+
+loader = TextLoader("knowledge_base.txt", encoding="utf-8")
+documents = loader.load()
+text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
+texts = text_splitter.split_documents(documents)
+
+# 2. Создание векторной базы данных и эмбеддингов
+# Используем OpenAIEmbeddings для создания векторных представлений текста
+embeddings = OpenAIEmbeddings()
+# Создаем Chroma DB из наших документов
+docsearch = Chroma.from_documents(texts, embeddings)
+
+# 3. Настройка RAG-цепочки
+# Инициализируем LLM (например, OpenAI GPT-3.5-turbo)
+llm = OpenAI(temperature=0)
+# Создаем RetrievalQA цепочку. `from_chain_type` позволяет указать тип цепочки (stuff, map_reduce, etc.)
+# `retriever` - это объект, который будет извлекать релевантные документы
+qa = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=docsearch.as_retriever())
+
+# 4. Запрос к RAG-системе
+query = "Когда был выпущен продукт Y компанией ExampleCorp?"
+response = qa.run(query)
+print(f"Вопрос: {query}")
+print(f"Ответ: {response}")
+
+query_current = "Кто текущий CEO ExampleCorp и когда он был назначен?"
+response_current = qa.run(query_current)
+print(f"Вопрос: {query_current}")
+print(f"Ответ: {response_current}")
+
+# Очистка фиктивного файла
+os.remove("knowledge_base.txt")
+</code></pre>
+</div>
+
+В этом примере `docsearch.as_retriever()` отвечает за извлечение релевантных фрагментов из `knowledge_base.txt`, а затем эти фрагменты передаются в `llm` вместе с исходным запросом.
+
+<h2>Отсутствие прозрачности и воспроизводимости</h2>
+Традиционные LLM часто работают как "черные ящики". Когда модель генерирует ответ, крайне сложно понять, на какие именно фрагменты обучающих данных или внутренние веса она опиралась для формирования этого ответа. Это
+<div class="navigation">
+  <a href="2_1_Отличия_и_выбор_подхода.html" class="nav-prev">← Предыдущая</a>
+  <a href="../../contents.html" class="nav-home">Содержание</a>
+  <a href="2_3_Кейсы.html" class="nav-next">Следующая →</a>
+</div>
+</div>
+</body>
+</html>
