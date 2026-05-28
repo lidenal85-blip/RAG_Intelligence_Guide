@@ -212,12 +212,11 @@ def run():
                 break
             except urllib.error.HTTPError as e:
                 if e.code == 429:
-                    # Ротируем ключ вместо ожидания
-                    wait = 3 if attempt < 2 else 30
-                    print(f"429 K{_KEY_IDX % len(_KEYS) if _KEYS else '?'}, новый ключ...", end=" ", flush=True)
+                    wait = 65 * (attempt + 1)
+                    print(f"429, ждём {wait}s...", end=" ", flush=True)
                     time.sleep(wait)
                 else:
-                    print(f"HTTP {e.code}")
+                    print(f"HTTP {e.code}: {e.reason}")
                     failed.append((num, title, str(e)))
                     break
             except Exception as e:
