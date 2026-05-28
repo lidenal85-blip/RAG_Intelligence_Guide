@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>13.1 Token budget и контекстное окно</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0a0c;color:#f0e8d8;font-family:'Inter',sans-serif;font-weight:300;line-height:1.6;padding:2rem;}
+  .container{max-width:1000px;margin:0 auto;background:rgba(15,15,19,0.6);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.07);border-radius:32px;padding:2.5rem;}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:400;color:#c9a96e;margin-bottom:1rem;}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:400;margin:1.5rem 0 0.75rem;color:#d4a76a;}
+  p{margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  ul,ol{margin-left:1.5rem;margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  li{margin:0.4rem 0;}
+  table{width:100%;border-collapse:collapse;margin:1.5rem 0;}
+  th{background:rgba(201,169,110,0.15);color:#c9a96e;padding:0.75rem;text-align:left;border:1px solid rgba(201,169,110,0.2);}
+  td{padding:0.6rem 0.75rem;border:1px solid rgba(255,255,255,0.07);color:rgba(240,232,216,0.65);}
+  .code-block{background:#0c0c10;border-left:3px solid #c9a96e;padding:1rem 1.5rem;font-family:monospace;font-size:0.85rem;overflow-x:auto;margin:1.2rem 0;border-radius:16px;color:#d4d4d4;white-space:pre;}
+  .card-quote{background:linear-gradient(135deg,rgba(200,128,106,0.08),rgba(201,169,110,0.03));border-left:4px solid #c9a96e;padding:1.2rem 1.8rem;font-style:italic;margin:1.5rem 0;border-radius:0 20px 20px 0;}
+  .card-note{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.2rem 1.8rem;margin:1.5rem 0;border-radius:20px;}
+  .pill{background:rgba(201,169,110,0.15);padding:0.2rem 0.8rem;border-radius:20px;font-size:0.7rem;display:inline-block;margin-bottom:1rem;}
+  .navigation{display:flex;justify-content:space-between;margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.08);}
+  .nav-prev,.nav-next,.nav-home{text-decoration:none;font-size:0.8rem;padding:0.5rem 1.2rem;border-radius:30px;background:rgba(201,169,110,0.08);border:1px solid rgba(201,169,110,0.2);color:#c9a96e;}
+  .nav-home{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:rgba(240,232,216,0.6);}
+  @media(max-width:700px){body{padding:1rem;}.container{padding:1.5rem;}h1{font-size:1.8rem;}.navigation{flex-wrap:wrap;gap:0.5rem;justify-content:center;}}</style>
+</head>
+<body>
+<div class="container">
+<div class="pill">Chapter 13.1</div>
+<h1>13.1 Token budget и контекстное окно</h1>
+
+В мире Retrieval Augmented Generation (RAG), где большие языковые модели (LLM) обогащаются информацией из внешних источников, понимание и эффективное управление токен-бюджетом и контекстным окном является краеугольным камнем успеха. Эти концепции напрямую влияют на релевантность ответов, производительность системы и, что немаловажно, на стоимость эксплуатации. Недостаточное внимание к ним может привести к "галлюцинациям" модели, упущению важной информации или неоптимальным затратам.
+
+<h2>Понимание Токен-Бюджета и Контекстного Окна</h2>
+
+Для начала разберемся с базовыми определениями, которые лежат в основе взаимодействия с LLM.
+
+<h3>Что такое Токен?</h3>
+Токен – это наименьшая единица текста, которую большая языковая модель может обрабатывать. Это не всегда целое слово; чаще всего токены представляют собой подслова, части слов, знаки препинания или даже отдельные символы. Например, слово "невероятный" может быть разбито на токены "не", "веро", "ятный". Токенизация – это процесс преобразования текста в последовательность токенов.
+
+Разные модели используют разные токенизаторы. Наиболее распространенным для моделей OpenAI является `tiktoken`, который позволяет точно подсчитывать токены для таких моделей, как GPT-3.5 и GPT-4. Для других моделей, например, от Anthropic (Claude), используются свои собственные токенизаторы.
+
+Почему токены важны?
+<ul>
+    <li><b>Ограничения LLM:</b> Все LLM имеют жесткие ограничения на количество токенов, которые они могут принять на вход и сгенерировать на выход.</li>
+    <li><b>Стоимость:</b> API-вызовы к LLM часто тарифицируются исходя из количества обработанных токенов (входных и выходных).</li>
+    <li><b>Производительность:</b> Обработка большего количества токенов занимает больше времени.</li>
+</ul>
+
+<h3>Контекстное Окно (Context Window)</h3>
+Контекстное окно – это максимальное количество токенов (входных и выходных), которое большая языковая модель может одновременно удерживать и обрабатывать. Это включает в себя:
+<ul>
+    <li><b>Системные инструкции (System Prompt):</b> Инструкции, определяющие роль и поведение модели.</li>
+    <li><b>Запрос пользователя (User Query):</b> Непосредственный вопрос или задача пользователя.</li>
+    <li><b>Извлеченные документы (Retrieved Documents):</b> Релевантные фрагменты информации, полученные из векторной базы данных.</li>
+    <li><b>История диалога (Chat History):</b> Предыдущие обмены сообщениями в чат-боте.</li>
+    <li><b>Ответ модели (Model Output):</b> Сгенерированный LLM ответ.</li>
+</ul>
+Все эти компоненты должны умещаться в общий лимит контекстного окна. Если сумма токенов превышает этот лимит, модель либо усечет входные данные, либо выдаст ошибку.
+
+<div class="code-block">
+    <p>Пример подсчета токенов с использованием <code>tiktoken</code> для моделей OpenAI:</p>
+    <pre><code class="language-python">
+import tiktoken
+
+def count_tokens(text: str, model_name: str = "gpt-4"):
+    """
+    Подсчитывает количество токенов в заданном тексте для указанной модели OpenAI.
+    """
+    encoding = tiktoken.encoding_for_model(model_name)
+    tokens = encoding.encode(text)
+    return len(tokens)
+
+# Пример использования
+prompt = "Что такое Retrieval Augmented Generation и как оно работает?"
+retrieved_doc = "RAG - это метод, улучшающий возможности LLM за счет извлечения фактов из внешних баз данных и их включения в запрос к модели."
+
+total_context = f"Системные инструкции: Вы полезный помощник.\n\nПользовательский запрос: {prompt}\n\nДокументы: {retrieved_doc}"
+
+tokens_in_prompt = count_tokens(prompt, "gpt-4")
+tokens_in_doc = count_tokens(retrieved_doc, "gpt-4")
+tokens_in_full_context = count_tokens(total_context, "gpt-4")
+
+print(f"Токенов в запросе: {tokens_in_prompt}")
+print(f"Токенов в извлеченном документе: {tokens_in_doc}")
+print(f"Токенов во всем контексте (включая инструкции и форматирование): {tokens_in_full_context}")
+
+# Ожидаемый вывод:
+# Токенов в запросе: 12
+# Токенов в извлеченном документе: 27
+# Токенов во всем контексте (включая инструкции и форматирование): 47
+    </code></pre>
+</div>
+
+<h2>Вызовы и Ограничения Контекстного Окна в RAG</h2>
+
+Размер контекстного окна значительно варьируется от модели к модели и является ключевым фактором при выборе LLM для RAG-системы.
+
+<table class="data-table">
+    <thead>
+        <tr>
+            <th>Модель LLM</th>
+            <th>Размер контекстного окна (токены)</th>
+            <th>Особенности</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td>GPT-3.5-turbo</td>
+            <td>4k, 16k</td>
+            <td>Экономичная, быстрая. 16k версия хорошо подходит для умеренно длинных контекстов.</td>
+        </tr>
+        <tr>
+            <td>GPT-4</td>
+            <td>8k, 32k, 128k (GPT-4-turbo)</td>
+            <td>Высокая производительность, но дороже. 128k версия позволяет обрабатывать очень большие объемы текста.</td>
+        </tr>
+        <tr>
+            <td>Claude 2.1</td>
+            <td>200k</td>
+            <td>Огромное контекстное окно, идеально для обработки целых книг или длинных отчетов.</td>
+        </tr>
+        <tr>
+            <td>Claude 3 Opus/Sonnet/Haiku</td>
+            <td>200k (с возможностью до 1M для избранных)</td>
+            <td>Последнее поколение Claude с улучшенными возможностями и огромным стандартным контекстом.</td>
+        </tr>
+        <tr>
+            <td>Gemini 1.5 Pro</td>
+            <td>1M (миллион)</td>
+            <td>Рекордное контекстное окно, позволяющее обрабатывать видео, аудио и огромные текстовые документы.</td>
+        </tr>
+        <tr>
+            <td>Llama 2 (7B, 13B, 70B)</td>
+            <td>4k</td>
+            <td>Опенсорсные модели, могут быть дообучены для увеличения контекста.</td>
+        </tr>
+        <tr>
+            <td>Mistral Large</td>
+            <td>32k</td>
+            <td>Мощная опенсорсная модель с хорошим контекстным окном.</td>
+        </tr>
+    </tbody>
+</table>
+
+Несмотря на постоянно увеличивающиеся размеры контекстных окон, существуют фундаментальные вызовы:
+
+1.  <b>"Lost in the Middle" (Потеря в середине):</b> Исследования показали, что даже модели с очень большими контекстными окнами могут хуже улавливать релевантную информацию, если она находится в середине длинного текста, по сравнению с информацией в начале или конце. Это означает, что простое увеличение контекста не всегда приводит к пропорциональному улучшению качества.
+2.  <b>Стоимость:</b> Модели с большими контекстными окнами, как правило, дороже. Например, GPT-4-turbo 128k значительно дороже GPT-3.5-turbo 16k. Эффективное управление токенами напрямую влияет на бюджет.
+3.  <b>Скорость:</b> Обработка 128 000 токенов занимает больше времени, чем обработка 4 000 токенов. Это может быть критично для приложений, требующих низкой задержки.
+4.  <b>Шум и избы
+<div class="navigation">
+  <a href="../../Часть_6_Reranking/Глава_12_Reranking/12_3_Когда.html" class="nav-prev">← Предыдущая</a>
+  <a href="../../contents.html" class="nav-home">Содержание</a>
+  <a href="13_2_Compression.html" class="nav-next">Следующая →</a>
+</div>
+</div>
+</body>
+</html>

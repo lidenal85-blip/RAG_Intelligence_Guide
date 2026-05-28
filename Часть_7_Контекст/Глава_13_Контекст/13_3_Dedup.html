@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>13.3 Deduplication чанков</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+<style>*{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0a0c;color:#f0e8d8;font-family:'Inter',sans-serif;font-weight:300;line-height:1.6;padding:2rem;}
+  .container{max-width:1000px;margin:0 auto;background:rgba(15,15,19,0.6);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.07);border-radius:32px;padding:2.5rem;}
+  h1{font-family:'Cormorant Garamond',serif;font-size:2.5rem;font-weight:400;color:#c9a96e;margin-bottom:1rem;}
+  h2{font-family:'Cormorant Garamond',serif;font-size:1.8rem;font-weight:400;margin:1.5rem 0 0.75rem;color:#d4a76a;}
+  p{margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  ul,ol{margin-left:1.5rem;margin-bottom:1rem;color:rgba(240,232,216,0.65);}
+  li{margin:0.4rem 0;}
+  table{width:100%;border-collapse:collapse;margin:1.5rem 0;}
+  th{background:rgba(201,169,110,0.15);color:#c9a96e;padding:0.75rem;text-align:left;border:1px solid rgba(201,169,110,0.2);}
+  td{padding:0.6rem 0.75rem;border:1px solid rgba(255,255,255,0.07);color:rgba(240,232,216,0.65);}
+  .code-block{background:#0c0c10;border-left:3px solid #c9a96e;padding:1rem 1.5rem;font-family:monospace;font-size:0.85rem;overflow-x:auto;margin:1.2rem 0;border-radius:16px;color:#d4d4d4;white-space:pre;}
+  .card-quote{background:linear-gradient(135deg,rgba(200,128,106,0.08),rgba(201,169,110,0.03));border-left:4px solid #c9a96e;padding:1.2rem 1.8rem;font-style:italic;margin:1.5rem 0;border-radius:0 20px 20px 0;}
+  .card-note{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:1.2rem 1.8rem;margin:1.5rem 0;border-radius:20px;}
+  .pill{background:rgba(201,169,110,0.15);padding:0.2rem 0.8rem;border-radius:20px;font-size:0.7rem;display:inline-block;margin-bottom:1rem;}
+  .navigation{display:flex;justify-content:space-between;margin-top:3rem;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.08);}
+  .nav-prev,.nav-next,.nav-home{text-decoration:none;font-size:0.8rem;padding:0.5rem 1.2rem;border-radius:30px;background:rgba(201,169,110,0.08);border:1px solid rgba(201,169,110,0.2);color:#c9a96e;}
+  .nav-home{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08);color:rgba(240,232,216,0.6);}
+  @media(max-width:700px){body{padding:1rem;}.container{padding:1.5rem;}h1{font-size:1.8rem;}.navigation{flex-wrap:wrap;gap:0.5rem;justify-content:center;}}</style>
+</head>
+<body>
+<div class="container">
+<div class="pill">Chapter 13.3</div>
+<h1>13.3 Deduplication чанков</h1>
+
+В мире Retrieval Augmented Generation (RAG) эффективность и качество системы напрямую зависят от качества и структуры лежащих в её основе данных. Одним из критически важных аспектов управления данными является дедупликация чанков. Представьте себе базу знаний, содержащую тысячи документов, где одна и та же информация может повторяться в различных формулировках, из разных источников или даже внутри одного документа из-за особенностей его обработки. Такие повторения приводят к ряду проблем, которые дедупликация призвана решить.
+
+**Что такое дедупликация чанков и почему она важна?**
+Дедупликация чанков — это процесс выявления и удаления избыточных или очень похожих фрагментов текста (чанков) из индекса, используемого RAG-системой. Её важность проявляется в нескольких ключевых областях:
+
+1.  **Экономия ресурсов:** Каждый чанк требует вычислительных ресурсов для генерации эмбеддинга, места для хранения в векторной базе данных (например, Qdrant, Pinecone, Milvus) и пропускной способности сети. Удаление дубликатов может значительно сократить эти затраты, иногда на 10-30% и более, в зависимости от источника данных.
+2.  **Повышение качества извлечения (Retrieval Quality):** Когда индексируются дублирующиеся чанки, ретривер может извлечь несколько идентичных или почти идентичных фрагментов информации. Это не только занимает ценное место в контекстном окне языковой модели (LLM), но и может сбивать её с толку, заставляя обрабатывать избыточную информацию, что потенциально приводит к менее точным или избыточным ответам.
+3.  **Снижение задержки (Latency):** Меньшее количество чанков для поиска и обработки означает более быстрое выполнение запросов. Это особенно важно для систем, работающих в реальном времени.
+4.  **Улучшение консистентности ответов:** Удаление повторяющейся информации помогает гарантировать, что LLM получает наиболее чистый и однозначный контекст, снижая вероятность противоречивых ответов, вызванных незначительными вариациями одного и того же факта.
+
+<h2>Методы дедупликации</h2>
+
+Существует несколько подходов к дедупликации, каждый из которых имеет свои преимущества и недостатки, а также области применения.
+
+1.  **Дедупликация по точному совпадению (Exact Match Deduplication):**
+    Это самый простой и быстрый метод. Он основан на сравнении текстового содержимого чанков.
+    *   **Хэширование:** Для каждого чанка генерируется уникальный хэш (например, MD5, SHA256). Если два чанка имеют одинаковый хэш, они считаются идентичными.
+    *   **Прямое сравнение строк:** Сравнение текста чанков напрямую.
+    *   **Преимущества:** Высокая скорость, низкие вычислительные затраты, гарантированное удаление абсолютно идентичных дубликатов.
+    *   **Недостатки:** Нечувствителен к незначительным изменениям (регистр букв, пробелы, знаки препинания, перефразирование). "Привет мир!" и "привет, мир!" будут считаться разными чанками.
+    *   **Предварительная обработка:** Для повышения эффективности рекомендуется нормализовать текст перед хэшированием: привести к нижнему регистру, удалить лишние пробелы, пунктуацию.
+
+2.  **Дедупликация по неточному совпадению (Fuzzy Match Deduplication):**
+    Этот метод направлен на выявление чанков, которые очень похожи, но не идентичны.
+    *   **Метрики расстояния:** Используются алгоритмы, такие как расстояние Левенштейна (редакторское расстояние), расстояние Джаккарда (для наборов слов или N-грамм), или алгоритмы на основе Q-грамм.
+    *   **Преимущества:** Способность обнаруживать дубликаты с небольшими различиями, опечатками или незначительными изменениями.
+    *   **Недостатки:** Вычислительно более затратный, чем точное совпадение. Требует определения порогового значения сходства, что может быть неочевидно.
+
+3.  **Семантическая дедупликация (Semantic Deduplication):**
+    Наиболее продвинутый метод для RAG-систем, который учитывает смысловое содержание чанков.
+    *   **Эм
+<div class="navigation">
+  <a href="13_2_Compression.html" class="nav-prev">← Предыдущая</a>
+  <a href="../../contents.html" class="nav-home">Содержание</a>
+  <a href="13_4_Sliding.html" class="nav-next">Следующая →</a>
+</div>
+</div>
+</body>
+</html>
